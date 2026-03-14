@@ -32,9 +32,9 @@ jobs:
       - name: Build project
         run: npm run build
         env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          OCR_API_KEY: ${{ secrets.OCR_API_KEY }}
-          VITE_APP_URL: ${{ secrets.VITE_APP_URL }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY || '' }}
+          OCR_API_KEY: ${{ secrets.OCR_API_KEY || '' }}
+          VITE_APP_URL: ${{ secrets.VITE_APP_URL || 'http://localhost:3000' }}
 
       - name: Check build output
         run: test -d dist && echo "Build successful" || exit 1
