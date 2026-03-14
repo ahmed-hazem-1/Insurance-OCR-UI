@@ -1,0 +1,5 @@
+{
+  "name": "Insurance Document OCR",
+  "description": "A web interface for extracting structured data from insurance documents using an OCR API.",
+  "requestFramePermissions": []
+}
