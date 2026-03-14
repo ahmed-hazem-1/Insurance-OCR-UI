@@ -8,12 +8,14 @@ services:
       args:
         GEMINI_API_KEY: ${GEMINI_API_KEY:-}
         OCR_API_KEY: ${OCR_API_KEY:-}
+        OCR_API_URL: ${OCR_API_URL:-https://insurance-ocr-logic-756575203090.europe-west1.run.app/v1/documents/extract}
         VITE_APP_URL: ${VITE_APP_URL:-http://localhost:3000}
     ports:
       - "3000:3000"
     environment:
       GEMINI_API_KEY: ${GEMINI_API_KEY}
       OCR_API_KEY: ${OCR_API_KEY}
+      OCR_API_URL: ${OCR_API_URL:-https://insurance-ocr-logic-756575203090.europe-west1.run.app/v1/documents/extract}
       VITE_APP_URL: ${VITE_APP_URL:-http://localhost:3000}
       NODE_ENV: production
     restart: unless-stopped

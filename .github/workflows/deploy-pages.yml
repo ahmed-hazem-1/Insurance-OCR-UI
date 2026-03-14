@@ -38,6 +38,7 @@ jobs:
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY || '' }}
           OCR_API_KEY: ${{ secrets.OCR_API_KEY || '' }}
+          OCR_API_URL: ${{ secrets.OCR_API_URL || 'https://insurance-ocr-logic-756575203090.europe-west1.run.app/v1/documents/extract' }}
           VITE_APP_URL: ${{ secrets.VITE_APP_URL || 'http://localhost:3000' }}
           BASE: /Insurance-OCR-UI/
 
