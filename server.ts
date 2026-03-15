@@ -26,6 +26,7 @@ async function startServer() {
       }
 
       const docType = req.body.doc_type || 'auto';
+      const modelId = req.body.model_id;
       const clientApiKey = req.body.api_key;
       const apiUrl = process.env.OCR_API_URL || 'http://127.0.0.1:8000/v1/documents/extract';
 
@@ -35,6 +36,9 @@ async function startServer() {
         contentType: req.file.mimetype,
       });
       formData.append('doc_type', docType);
+      if (modelId) {
+        formData.append('model_id', modelId);
+      }
 
       try {
         const headers: any = {

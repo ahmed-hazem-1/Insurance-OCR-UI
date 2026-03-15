@@ -1,5 +1,5 @@
-import React, { useState, useRef } from 'react';
-import { Upload, FileText, CheckCircle, AlertCircle, Loader2, FileImage, Settings, Code, LayoutList, Check, X } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { Upload, FileText, CheckCircle, AlertCircle, Loader2, FileImage, Settings, Code, LayoutList, Check, X, ChevronDown } from 'lucide-react';
 import Markdown from 'react-markdown';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -8,7 +8,97 @@ function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-type Tab = 'structured' | 'raw' | 'metadata';
+type Tab = 'structured' | 'raw' | 'json' | 'metadata';
+
+interface ModelInfo {
+  id: string;
+  name: string;
+  inputPrice: string;
+  outputPrice: string;
+  family: string;
+  multimodal: boolean;
+  deprecated?: string;
+}
+
+const GEMINI_MODELS: ModelInfo[] = [
+  {
+    id: 'gemini-3.1-pro-preview',
+    name: 'Gemini 3.1 Pro (Preview)',
+    inputPrice: '$1.00 - $2.00',
+    outputPrice: '$6.00 - $9.00',
+    family: 'Gemini 3.1',
+    multimodal: true
+  },
+  {
+    id: 'gemini-3.1-flash-lite-preview',
+    name: 'Gemini 3.1 Flash-Lite',
+    inputPrice: '$0.25',
+    outputPrice: '$1.50',
+    family: 'Gemini 3.1',
+    multimodal: true
+  },
+  {
+    id: 'gemini-3-pro-preview',
+    name: 'Gemini 3 Pro (Preview)',
+    inputPrice: '$2.00 - $4.00',
+    outputPrice: '$12.00 - $18.00',
+    family: 'Gemini 3.0',
+    multimodal: true
+  },
+  {
+    id: 'gemini-3-flash-preview',
+    name: 'Gemini 3 Flash (Preview)',
+    inputPrice: '$0.50',
+    outputPrice: '$3.00',
+    family: 'Gemini 3.0',
+    multimodal: true
+  },
+  {
+    id: 'gemini-2.5-pro',
+    name: 'Gemini 2.5 Pro',
+    inputPrice: '$0.625 - $1.25',
+    outputPrice: '$5.00 - $7.50',
+    family: 'Gemini 2.5',
+    multimodal: true
+  },
+  {
+    id: 'gemini-2.5-flash',
+    name: 'Gemini 2.5 Flash',
+    inputPrice: '$0.15',
+    outputPrice: '$1.25',
+    family: 'Gemini 2.5',
+    multimodal: true
+  },
+  {
+    id: 'gemini-2.0-flash',
+    name: 'Gemini 2.0 Flash',
+    inputPrice: '$0.10',
+    outputPrice: '$0.40',
+    family: 'Gemini 2.0',
+    multimodal: true
+  },
+  {
+    id: 'gemini-2.0-flash-lite',
+    name: 'Gemini 2.0 Flash-Lite',
+    inputPrice: '$0.075',
+    outputPrice: '$0.30',
+    family: 'Gemini 2.0',
+    multimodal: true
+  }
+];
+
+function calculateTotal(input: string, output: string) {
+  const parse = (s: string) => s.replace('$', '').split('-').map(v => parseFloat(v.trim()));
+  const inVals = parse(input);
+  const outVals = parse(output);
+  
+  if (inVals.length > 1 || outVals.length > 1) {
+    const min = inVals[0] + outVals[0];
+    const max = (inVals[1] || inVals[0]) + (outVals[1] || outVals[0]);
+    return `$${min.toFixed(2)} - $${max.toFixed(2)}`;
+  }
+  return `$${(inVals[0] + outVals[0]).toFixed(2)}`;
+}
 
 // Base document interface with common fields
 interface BaseDocument {
@@ -24,9 +114,11 @@ interface PharmacyReceipt extends BaseDocument {
   document_type: 'pharmacy_receipt';
   store_name: string | null;
   receipt_number: string | null;
+  patient_name?: string | null;
   date: string | null;
   currency: string | null;
   subtotal: number | null;
+  total_price?: number | null;
   total_amount: number | null;
   paid_amount: number | null;
   is_paid: boolean;
@@ -103,6 +195,15 @@ function renderStructuredFields(document: DocumentType) {
 
   if (document.document_type === 'pharmacy_receipt') {
     const doc = document as PharmacyReceipt;
+    const calculatedTotalPrice = (doc.items ?? []).reduce((sum, item) => {
+      const lineTotal = (item.total_price ?? 0) > 0
+        ? (item.total_price ?? 0)
+        : (item.quantity ?? 0) * (item.unit_price ?? 0);
+      return sum + lineTotal;
+    }, 0);
+    const totalPriceValue = doc.items && doc.items.length > 0
+      ? calculatedTotalPrice
+      : (doc.total_price ?? doc.total_amount);
     return (
       <div className="space-y-6">
         {/* Paid Status Badge */}
@@ -130,17 +231,19 @@ function renderStructuredFields(document: DocumentType) {
         {/* Main Fields */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
           {[
-            ['store_name', 'Store Name'],
-            ['receipt_number', 'Receipt Number'],
-            ['date', 'Date'],
-            ['currency', 'Currency'],
-            ['subtotal', 'Subtotal'],
-            ['total_amount', 'Total Amount'],
-            ['paid_amount', 'Paid Amount'],
-          ].map(([key, label]) => (
-            <dl key={key} className="border-b border-slate-100 pb-4">
-              <dt className="text-sm font-medium text-slate-500 mb-1">{label}</dt>
-              <dd className="text-sm text-slate-900">{formatValue(doc[key as keyof PharmacyReceipt])}</dd>
+            { key: 'store_name', label: 'Store Name', value: doc.store_name },
+            { key: 'receipt_number', label: 'Receipt Number', value: doc.receipt_number },
+            { key: 'patient_name', label: 'Patient Name', value: doc.patient_name },
+            { key: 'date', label: 'Date', value: doc.date },
+            { key: 'currency', label: 'Currency', value: doc.currency },
+            { key: 'subtotal', label: 'Subtotal', value: doc.subtotal },
+            { key: 'total_price', label: 'Total Price', value: totalPriceValue },
+            { key: 'total_amount', label: 'Total Amount', value: doc.total_amount },
+            { key: 'paid_amount', label: 'Paid Amount', value: doc.paid_amount },
+          ].map((field) => (
+            <dl key={field.key} className="border-b border-slate-100 pb-4">
+              <dt className="text-sm font-medium text-slate-500 mb-1">{field.label}</dt>
+              <dd className="text-sm text-slate-900">{formatValue(field.value)}</dd>
             </dl>
           ))}
         </div>
@@ -165,7 +268,7 @@ function renderStructuredFields(document: DocumentType) {
                       <td className="px-4 py-3 text-slate-900">{item.description || 'N/A'}</td>
                       <td className="px-4 py-3 text-right text-slate-900">{item.quantity || '0'}</td>
                       <td className="px-4 py-3 text-right text-slate-900">${(item.unit_price ?? 0).toFixed(2)}</td>
-                      <td className="px-4 py-3 text-right font-medium text-slate-900">${(item.total_price ?? 0).toFixed(2)}</td>
+                      <td className="px-4 py-3 text-right font-medium text-slate-900">${(((item.total_price ?? 0) > 0 ? (item.total_price ?? 0) : (item.quantity ?? 0) * (item.unit_price ?? 0))).toFixed(2)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -341,7 +444,11 @@ function formatValue(value: any) {
 export default function App() {
   const [file, setFile] = useState<File | null>(null);
   const [docType, setDocType] = useState('auto');
-  const [apiKey, setApiKey] = useState('');
+  const [model, setModel] = useState('gemini-3.1-pro-preview');
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [isDocTypeOpen, setIsDocTypeOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const docTypeRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState<OcrResponse | null>(null);
@@ -350,6 +457,33 @@ export default function App() {
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Close dropdowns when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsDropdownOpen(false);
+      }
+      if (docTypeRef.current && !docTypeRef.current.contains(event.target as Node)) {
+        setIsDocTypeOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [dropdownRef, docTypeRef]);
+
+  const selectedModel = GEMINI_MODELS.find(m => m.id === model) || GEMINI_MODELS[0];
+  
+  const DOC_TYPES = [
+    { id: 'auto', name: 'Auto-detect (Default)', description: 'Automatically identifies the document type' },
+    { id: 'pharmacy_receipt', name: 'Pharmacy Receipt', description: 'Extracts items, prices, and store info' },
+    { id: 'lab_invoice', name: 'Lab Invoice', description: 'Extracts test results, values, and lab info' },
+    { id: 'insurance', name: 'Insurance Policy', description: 'Extracts coverage, numbers, and dates' },
+  ];
+
+  const selectedDocType = DOC_TYPES.find(d => d.id === docType) || DOC_TYPES[0];
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -394,8 +528,12 @@ export default function App() {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('doc_type', docType);
-    if (apiKey) {
-      formData.append('api_key', apiKey);
+    formData.append('model_id', model);
+
+    // Debugging: Log FormData entries
+    console.log('Sending request with:');
+    for (let pair of (formData as any).entries()) {
+      console.log(pair[0] + ': ' + pair[1]);
     }
 
     try {
@@ -446,32 +584,150 @@ export default function App() {
                 }}
                 className="space-y-4"
               >
-                <div>
-                  <label htmlFor="api-key-input" className="block text-sm font-medium text-slate-700 mb-1">API Key (Optional)</label>
-                  <input 
-                    id="api-key-input"
-                    type="password"
-                    value={apiKey}
-                    onChange={(e) => setApiKey(e.target.value)}
-                    placeholder="Enter your OCR API key"
-                    className="w-full rounded-xl border-slate-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-2.5 border bg-white"
-                  />
-                  <p className="mt-1 text-xs text-slate-500">Leave blank to use the server's default key.</p>
+                <div className="relative" ref={docTypeRef}>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Document Type</label>
+                  <button
+                    type="button"
+                    onClick={() => setIsDocTypeOpen(!isDocTypeOpen)}
+                    className="w-full flex items-center justify-between rounded-xl border border-slate-300 bg-white p-2.5 text-left text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-all active:scale-[0.99]"
+                    aria-haspopup="listbox"
+                    aria-expanded={isDocTypeOpen ? "true" : "false"}
+                    aria-label="Toggle document type dropdown"
+                  >
+                    <span className="truncate font-medium">{selectedDocType.name}</span>
+                    <ChevronDown className={cn("h-4 w-4 text-slate-400 transition-transform duration-200", isDocTypeOpen && "rotate-180")} />
+                  </button>
+
+                  {isDocTypeOpen && (
+                    <div className="absolute z-20 mt-2 w-full overflow-hidden rounded-2xl bg-white border border-slate-200 shadow-2xl animate-in fade-in zoom-in duration-200 focus:outline-none p-1.5 space-y-1">
+                      {DOC_TYPES.map((d) => (
+                        <button
+                          key={d.id}
+                          type="button"
+                          onClick={() => {
+                            setDocType(d.id);
+                            setIsDocTypeOpen(false);
+                          }}
+                          className={cn(
+                            "flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left transition-all duration-200",
+                            docType === d.id 
+                              ? "bg-indigo-600 text-white shadow-md shadow-indigo-200" 
+                              : "hover:bg-slate-50 active:scale-[0.98]"
+                          )}
+                        >
+                          <div className="flex flex-col min-w-0 pr-4">
+                            <span className={cn("text-sm font-semibold truncate", docType === d.id ? "text-white" : "text-slate-900")}>
+                              {d.name}
+                            </span>
+                            <span className={cn("text-[10px] mt-0.5", docType === d.id ? "text-indigo-100" : "text-slate-500")}>
+                              {d.description}
+                            </span>
+                          </div>
+                          {docType === d.id && <Check className="h-4 w-4 text-white" strokeWidth={3} />}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
-                <div>
-                  <label htmlFor="doc-type-select" className="block text-sm font-medium text-slate-700 mb-1">Document Type</label>
-                  <select 
-                    id="doc-type-select"
-                    value={docType}
-                    onChange={(e) => setDocType(e.target.value)}
-                    className="w-full rounded-xl border-slate-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-2.5 border bg-white"
+                <div className="relative" ref={dropdownRef}>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Gemini Model (Multimodal)</label>
+                  <button
+                    type="button"
+                    onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                    className="w-full flex items-center justify-between rounded-xl border border-slate-300 bg-white p-2.5 text-left text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-all active:scale-[0.99]"
+                    aria-haspopup="listbox"
+                    aria-expanded={isDropdownOpen ? "true" : "false"}
+                    aria-label="Toggle Gemini model dropdown"
                   >
-                    <option value="auto">Auto-detect (Default)</option>
-                    <option value="pharmacy_receipt">Pharmacy Receipt</option>
-                    <option value="lab_invoice">Lab Invoice</option>
-                    <option value="insurance_policy">Insurance Policy</option>
-                  </select>
+                    <span className="flex flex-col min-w-0 pr-2">
+                      <span className="font-semibold text-slate-900 truncate">{selectedModel.name}</span>
+                      <span className="flex items-center gap-1.5 text-[10px] text-slate-500 mt-0.5">
+                        <span className="font-medium px-1 py-0.5 rounded bg-slate-100">IN: {selectedModel.inputPrice}</span>
+                        <span className="font-medium px-1 py-0.5 rounded bg-slate-100">OUT: {selectedModel.outputPrice}</span>
+                        <span className="font-bold px-1 py-0.5 rounded bg-indigo-50 text-indigo-600 border border-indigo-100">
+                          TOT: {calculateTotal(selectedModel.inputPrice, selectedModel.outputPrice)}
+                        </span>
+                      </span>
+                    </span>
+                    <ChevronDown className={cn("h-4 w-4 text-slate-400 transition-transform flex-shrink-0", isDropdownOpen && "rotate-180")} />
+                  </button>
+
+                  {isDropdownOpen && (
+                    <div className="absolute z-20 mt-2 max-h-[400px] w-[320px] left-0 overflow-hidden rounded-2xl bg-white border border-slate-200 shadow-2xl animate-in fade-in zoom-in duration-200 focus:outline-none">
+                      <div className="overflow-y-auto max-h-[400px] scrollbar-thin scrollbar-thumb-slate-200">
+                        {Array.from(new Set(GEMINI_MODELS.map(m => m.family))).map((family, familyIdx) => (
+                          <div key={family} className={cn(familyIdx !== 0 && "border-t border-slate-100")}>
+                            <div className="bg-slate-50/80 backdrop-blur-sm sticky top-0 z-10 px-4 py-2 text-[11px] font-bold uppercase tracking-widest text-slate-400">
+                              {family}
+                            </div>
+                            <div className="p-1.5 space-y-1">
+                              {GEMINI_MODELS.filter(m => m.family === family).map((m) => (
+                                <button
+                                  key={m.id}
+                                  type="button"
+                                  onClick={() => {
+                                    setModel(m.id);
+                                    setIsDropdownOpen(false);
+                                  }}
+                                  className={cn(
+                                    "flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left transition-all duration-200",
+                                    model === m.id 
+                                      ? "bg-indigo-600 text-white shadow-md shadow-indigo-200 scale-[0.98]" 
+                                      : "hover:bg-slate-50 active:scale-[0.98]"
+                                  )}
+                                >
+                                  <div className="flex flex-col min-w-0 pr-4">
+                                    <span className={cn(
+                                      "text-sm font-semibold truncate",
+                                      model === m.id ? "text-white" : "text-slate-900"
+                                    )}>
+                                      {m.name}
+                                    </span>
+                                    <div className={cn(
+                                      "mt-1 flex flex-wrap items-center gap-1.5 text-[10px]",
+                                      model === m.id ? "text-indigo-100" : "text-slate-500"
+                                    )}>
+                                      <span className="font-medium px-1.5 py-0.5 rounded-md bg-black/5">IN: {m.inputPrice}</span>
+                                      <span className="font-medium px-1.5 py-0.5 rounded-md bg-black/5">OUT: {m.outputPrice}</span>
+                                      <span className={cn(
+                                        "font-bold px-1.5 py-0.5 rounded-md border",
+                                        model === m.id ? "bg-white/20 border-white/20 text-white" : "bg-indigo-50 border-indigo-100 text-indigo-600"
+                                      )}>
+                                        TOTAL: {calculateTotal(m.inputPrice, m.outputPrice)}
+                                      </span>
+                                      {m.deprecated && (
+                                        <span className={cn(
+                                          "font-bold uppercase tracking-tighter",
+                                          model === m.id ? "text-amber-200" : "text-amber-600"
+                                        )}>
+                                          EOL {m.deprecated.split(',')[1].trim()}
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                  <div className="flex-shrink-0">
+                                    {model === m.id ? (
+                                      <div className="rounded-full bg-white/20 p-1">
+                                        <Check className="h-3.5 w-3.5 text-white" strokeWidth={3} />
+                                      </div>
+                                    ) : (
+                                      <div className="h-5 w-5 rounded-full border-2 border-slate-200 transition-colors group-hover:border-indigo-400" />
+                                    )}
+                                  </div>
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  <div className="mt-2">
+                    <p className="text-[10px] text-indigo-600 font-medium leading-tight">
+                      Multimodal Support: High-accuracy image analysis enabled.
+                    </p>
+                  </div>
                 </div>
 
                 <div>
@@ -484,7 +740,6 @@ export default function App() {
                     )}
                     onDragOver={handleDragOver}
                     onDragLeave={handleDragLeave}
-                    onDrop={handleDrop}
                     onClick={() => fileInputRef.current?.click()}
                   >
                     <div className="space-y-2 text-center">
@@ -622,6 +877,18 @@ export default function App() {
                       <Settings className="w-4 h-4 mr-2" />
                       Processing Metadata
                     </button>
+                    <button
+                      onClick={() => setActiveTab('json')}
+                      className={cn(
+                        "whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center transition-colors",
+                        activeTab === 'json'
+                          ? "border-indigo-500 text-indigo-600"
+                          : "border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300"
+                      )}
+                    >
+                      <Code className="w-4 h-4 mr-2" />
+                      API Response JSON
+                    </button>
                   </nav>
                 </div>
 
@@ -671,6 +938,16 @@ export default function App() {
                       <div className="bg-slate-900 rounded-xl p-4 flex-1 overflow-auto">
                         <pre className="text-sm text-slate-300 font-mono whitespace-pre-wrap">
                           {result.document.raw_ocr_text}
+                        </pre>
+                      </div>
+                    </div>
+                  )}
+
+                  {activeTab === 'json' && (
+                    <div className="animate-in fade-in duration-300 h-full flex flex-col">
+                      <div className="bg-slate-900 rounded-xl p-4 flex-1 overflow-auto">
+                        <pre className="text-sm text-slate-300 font-mono whitespace-pre-wrap">
+                          {JSON.stringify(result, null, 2)}
                         </pre>
                       </div>
                     </div>

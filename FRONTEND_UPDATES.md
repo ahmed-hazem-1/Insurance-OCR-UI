@@ -86,7 +86,8 @@ Changed title from "Insurance OCR API" to "Document OCR Parser" to reflect multi
 - Format: `multipart/form-data`
 - Parameters:
   - `file` - Document image file
-  - `doc_type` - Document type selector (auto/pharmacy_receipt/lab_invoice/insurance_policy)
+  - `doc_type` - Document type selector (auto/pharmacy_receipt/lab_invoice/insurance)
+  - `model_id` - AI model identifier for processing
   - `api_key` - Optional API key
 
 ## Sample Response Handling
