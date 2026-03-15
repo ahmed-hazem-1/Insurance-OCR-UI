@@ -591,7 +591,7 @@ export default function App() {
                     onClick={() => setIsDocTypeOpen(!isDocTypeOpen)}
                     className="w-full flex items-center justify-between rounded-xl border border-slate-300 bg-white p-2.5 text-left text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-all active:scale-[0.99]"
                     aria-haspopup="listbox"
-                    aria-expanded={isDocTypeOpen ? "true" : "false"}
+                    aria-expanded={isDocTypeOpen}
                     aria-label="Toggle document type dropdown"
                   >
                     <span className="truncate font-medium">{selectedDocType.name}</span>
@@ -637,7 +637,7 @@ export default function App() {
                     onClick={() => setIsDropdownOpen(!isDropdownOpen)}
                     className="w-full flex items-center justify-between rounded-xl border border-slate-300 bg-white p-2.5 text-left text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-all active:scale-[0.99]"
                     aria-haspopup="listbox"
-                    aria-expanded={isDropdownOpen ? "true" : "false"}
+                    aria-expanded={isDropdownOpen}
                     aria-label="Toggle Gemini model dropdown"
                   >
                     <span className="flex flex-col min-w-0 pr-2">
