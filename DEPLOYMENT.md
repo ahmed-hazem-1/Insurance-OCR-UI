@@ -1,86 +1,64 @@
 # Deployment Guide
 
-This document outlines how to deploy the Document OCR Parser frontend to GitHub Pages and other platforms.
+This document outlines how to deploy the Document OCR Parser frontend to Google Cloud Run and other platforms.
 
-## GitHub Pages Deployment
+## Google Cloud Run Deployment (Recommended)
 
-### Automatic Deployment with GitHub Actions
+The application is optimized for deployment on Google Cloud Run as a containerized service.
 
-The project includes GitHub Actions workflows that automatically build and deploy your application.
+### Prerequisites
 
-#### Prerequisites
+1. **Google Cloud Project** - An active Google Cloud project.
+2. **Google Cloud CLI** - Installed and configured on your local machine.
+3. **Docker** - For building the container image.
 
-1. **GitHub Repository** - Push this code to a GitHub repository
-2. **Environment Secrets** - Configure the following secrets in your GitHub repository settings:
-   - `GEMINI_API_KEY` - Your Gemini API key
-   - `OCR_API_KEY` - Your OCR service API key (optional)
-   - `VITE_APP_URL` - Your application URL
+### 1. Configure allowedHosts
 
-#### Setting Up Secrets
+Vite includes a security feature that blocks requests from unknown hosts. You must add your Cloud Run URL to `vite.config.ts`:
 
-1. Go to your repository on GitHub
-2. Navigate to **Settings** → **Secrets and variables** → **Actions**
-3. Click **New repository secret** and add:
-   - Name: `GEMINI_API_KEY`, Value: your API key
-   - Name: `OCR_API_KEY`, Value: your OCR API key
-   - Name: `VITE_APP_URL`, Value: `https://yourusername.github.io/Insurance-api/frontend/`
-
-#### Deploy on Push
-
-Push to the `main` branch to trigger automatic deployment:
-
-```bash
-git push origin main
+```typescript
+// vite.config.ts
+export default defineConfig({
+  // ...
+  server: {
+    allowedHosts: [
+      'your-service-name-hash.europe-west1.run.app'
+    ],
+  },
+});
 ```
 
-The workflow will:
-1. Install dependencies
-2. Run linting checks
-3. Build the application
-4. Deploy to GitHub Pages
-
-Your app will be available at: `https://yourusername.github.io/Insurance-api/frontend/`
-
-#### Manual Deployment
-
-Trigger a manual deployment via GitHub Actions:
-
-1. Go to **Actions** tab
-2. Select **Deploy to GitHub Pages** workflow
-3. Click **Run workflow**
-
-### Configuring GitHub Pages
-
-1. Go to **Settings** → **Pages**
-2. Set **Source** to "Deploy from a branch"
-3. Select **gh-pages** branch (created automatically by deploy workflow)
-4. Click **Save**
-
-## Manual Local Build & Deploy
-
-### Build Locally
+### 2. Build and Push to Artifact Registry
 
 ```bash
-npm install
-npm run build
+# Set your project ID
+PROJECT_ID="your-project-id"
+REGION="europe-west1"
+SERVICE_NAME="insurance-ocr-ui"
+
+# Create Artifact Registry repository if it doesn't exist
+gcloud artifacts repositories create $SERVICE_NAME \
+    --repository-format=docker \
+    --location=$REGION
+
+# Build the image using Cloud Build
+gcloud builds submit --tag $REGION-docker.pkg.dev/$PROJECT_ID/$SERVICE_NAME/$SERVICE_NAME .
 ```
 
-This creates a `dist/` directory with optimized production build.
+### 3. Deploy to Cloud Run
 
-### Deploy to GitHub Pages Manually
+```bash
+gcloud run deploy $SERVICE_NAME \
+    --image $REGION-docker.pkg.dev/$PROJECT_ID/$SERVICE_NAME/$SERVICE_NAME \
+    --platform managed \
+    --region $REGION \
+    --allow-unauthenticated \
+    --set-env-vars="GEMINI_API_KEY=your_key,OCR_API_KEY=your_key"
+```
 
-1. Build the project (see above)
-2. Create a `gh-pages` branch:
-   ```bash
-   git checkout --orphan gh-pages
-   git rm -rf .
-   cp -r dist/* .
-   git add .
-   git commit -m "Deploy to GitHub Pages"
-   git push -u origin gh-pages
-   ```
+**Note:** The container uses the `PORT` environment variable (default 8080 on Cloud Run) to listen for requests.
 
-3. Update GitHub repository settings to use `gh-pages` branch for Pages deployment
+---
 
 ## Docker Deployment
 
@@ -100,6 +78,20 @@ docker run -p 8080:3000 \
   insurance-ocr-frontend
 ```
 
+---
+
+## GitHub Actions CI
+
+The project includes a CI workflow (`.github/workflows/ci.yml`) that automatically:
+1. Installs dependencies
+2. Runs linting checks
+3. Builds the application
+4. Verifies the build output
+
+Deployment to GitHub Pages has been disabled in favor of Google Cloud Run.
+
+---
+
 ## Environment Variables
 
 Configure these variables for deployment:
@@ -108,113 +100,22 @@ Configure these variables for deployment:
 |----------|----------|-------------|
 | `GEMINI_API_KEY` | Yes | API key for Gemini AI OCR service |
 | `OCR_API_KEY` | No | Alternative OCR service API key |
-| `VITE_APP_URL` | No | Application base URL (for redirects) |
+| `VITE_APP_URL` | No | Application base URL |
+| `PORT` | No | Port for the server to listen on (default 3000) |
 
-### .env.local (Development)
-
-```env
-GEMINI_API_KEY=your_api_key_here
-OCR_API_KEY=your_ocr_key_here
-VITE_APP_URL=http://localhost:5173
-```
-
-### .env.production (Production)
-
-```env
-GEMINI_API_KEY=your_production_api_key
-OCR_API_KEY=your_production_ocr_key
-VITE_APP_URL=https://yourdomain.com/Insurance-api/frontend/
-```
-
-## Deployment Checklist
-
-- [ ] Repository pushed to GitHub
-- [ ] GitHub repository secrets configured
-- [ ] GitHub Pages enabled in repository settings
-- [ ] Actions workflows enabled
-- [ ] First deployment triggered successfully
-- [ ] Verify app works at deployment URL
-- [ ] API keys are secure and not exposed in code
-- [ ] `.env.local` is in `.gitignore` (already configured)
-
-## CI/CD Workflows
-
-### 1. CI Workflow (`ci.yml`)
-
-- **Triggers**: Push to `main`/`develop`, Pull Requests
-- **Node versions**: 18.x, 20.x
-- **Steps**:
-  - Install dependencies
-  - Run linting (TypeScript strict mode)
-  - Build application
-  - Upload artifacts
-
-### 2. Deploy Workflow (`deploy-pages.yml`)
-
-- **Triggers**: Push to `main`, Manual trigger
-- **Prerequisites**: Successful CI build
-- **Steps**:
-  - Build application
-  - Upload to GitHub Pages artifact
-  - Deploy to GitHub Pages
+---
 
 ## Troubleshooting
 
-### Build Fails
+### Blocked Request (Allowed Hosts)
 
-- Ensure all dependencies are installed: `npm ci`
-- Check TypeScript for errors: `npm run lint`
-- Verify Node.js version is 18.x or higher
+If you see an error like `Blocked request. This host (...) is not allowed`, add the hostname to the `allowedHosts` array in `vite.config.ts`.
 
-### Secrets Not Found
+### Container Failed to Start
 
-- Verify secrets are configured in repository Settings
-- Check secret names match workflow file exactly
-- Ensure branch pushing to matches workflow trigger
-
-### GitHub Pages Not Updating
-
-- Check Actions tab for workflow status
-- Verify `gh-pages` branch exists
-- Check GitHub Pages settings point to `gh-pages` branch
-- Clear browser cache
+Ensure that the server is listening on the port defined by the `PORT` environment variable. The code uses `process.env.PORT || 3000`.
 
 ### API Key Issues
 
-- Never commit `.env.local` to repository
-- Always use GitHub Secrets for sensitive data
-- Rotate API keys if exposed
-
-## Performance Monitoring
-
-After deployment, monitor:
-
-- Page load performance using Chrome DevTools
-- API response times and errors
-- Service worker and caching behavior
-- Browser console for JavaScript errors
-
-## Rollback
-
-To revert to a previous deployment:
-
-1. Go to **Actions** tab
-2. Find previous successful deployment run
-3. Download the build artifact
-4. Manually deploy the artifact to GitHub Pages
-
-Or reset the gh-pages branch:
-
-```bash
-git checkout gh-pages
-git reset --hard origin/main~N  # where N is number of commits to go back
-git push -f origin gh-pages
-```
-
-## Support
-
-For issues with:
-
-- **GitHub Actions**: See workflow runs in Actions tab
-- **Deployment**: Check GitHub Pages settings
-- **Application**: See console errors in browser DevTools
+- Never commit secrets to the repository.
+- Use Cloud Run environment variables or Secret Manager to handle sensitive data.

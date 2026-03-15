@@ -4,7 +4,6 @@
 
 <img width="1200" height="475" alt="Document OCR Parser Banner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
 
-[![Build Status](https://github.com/yourusername/Insurance-api/workflows/CI/badge.svg)](https://github.com/yourusername/Insurance-api/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Node Version](https://img.shields.io/badge/node-%3E%3D18-brightgreen)](https://nodejs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-Strict-blue)](https://www.typescriptlang.org/)
@@ -38,9 +37,9 @@ A powerful React-based frontend for extracting structured data from multiple doc
 - **Production Ready**
   - 🚀 Vite fast builds
   - 📦 Optimized bundle size
-  - 🐳 Docker support
-  - ☁️ GitHub Pages deployment
-  - 🔄 Automated CI/CD pipelines
+- 🐳 Docker support
+- ☁️ Google Cloud Run support
+- 🔄 Automated CI pipelines
 
 ## 🚀 Quick Start
 
@@ -98,21 +97,13 @@ npm run clean
 
 ## 🌐 Deployment
 
-### GitHub Pages (Automatic)
+### Google Cloud Run
 
-Push to `main` branch to trigger automatic deployment:
-
-```bash
-git push origin main
-```
-
-Your app will be available at: `https://yourusername.github.io/Insurance-api/frontend/`
+The application is configured for deployment on Google Cloud Run.
 
 **Requirements:**
-- Set GitHub repository secrets: `GEMINI_API_KEY`, `OCR_API_KEY`, `VITE_APP_URL`
-- Enable GitHub Pages in repository settings
-
-→ **[Full Deployment Guide](./DEPLOYMENT.md)**
+- Set environment variables: `GEMINI_API_KEY`, `OCR_API_KEY`, `PORT=8080`
+- Configure `allowedHosts` in `vite.config.ts` for your Cloud Run URL.
 
 ### Docker
 
@@ -143,8 +134,7 @@ src/
 
 .github/
 ├── workflows/
-│   ├── ci.yml          # Test & build pipeline
-│   └── deploy-pages.yml # GitHub Pages deployment
+│   └── ci.yml          # Test & build pipeline
 └── dependabot.yml      # Dependency auto-updates
 
 Dockerfile              # Container image definition
