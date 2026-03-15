@@ -27,25 +27,27 @@ FROM node:20-alpine
 
 WORKDIR /app
 
-# Install express for serving the app
-RUN npm install -g express
-
 # Copy built application from builder
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/server.ts ./server.ts
-COPY package*.json ./
+COPY --from=builder /app/vite.config.ts ./vite.config.ts
+COPY --from=builder /app/package*.json ./
 
-RUN npm ci --only=production
+# Install dependencies (including tsx for running server.ts)
+RUN npm install
 
+# Set node environment to production
+ENV NODE_ENV=production
 # Default port (Cloud Run sets this to 8080)
-ENV PORT=3000
+ENV PORT=8080
 
 # Expose port
-EXPOSE 3000
+EXPOSE 8080
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD node -e "require('http').get('http://localhost:' + (process.env.PORT || 3000) + '/api/health', (r) => {if (r.statusCode !== 200) throw new Error(r.statusCode)})"
+  CMD node -e "require('http').get('http://localhost:' + (process.env.PORT || 8080) + '/api/health', (r) => {if (r.statusCode !== 200) throw new Error(r.statusCode)})"
 
-# Start application
-CMD ["npm", "run", "dev"]
+# Start application using tsx to run server.ts
+# Alternatively, we could compile server.ts to JS, but tsx works fine for this case
+CMD ["npx", "tsx", "server.ts"]
